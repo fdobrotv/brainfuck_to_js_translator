@@ -1,18 +1,17 @@
-package main
+package translator_service
 
 import (
 	"bufio"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 
 	"stack"
 )
 
-func bf_jumps(prog []byte) (map[uint]uint, error) {
+func bfJumps(prog []byte) (map[uint]uint, error) {
 	var (
 		stack *stack.Stack  = stack.New()
 		jumps map[uint]uint = make(map[uint]uint)
@@ -48,12 +47,11 @@ func bf_jumps(prog []byte) (map[uint]uint, error) {
 	return jumps, nil
 }
 
-func translate(r io.Reader, i io.Reader, w io.Writer) error {
-	prog, err := ioutil.ReadAll(r)
-	if err != nil {
-		return err
-	}
-	input := bufio.NewReader(i) // buffered reader for `,` requests
+func Translate(prog []byte, resultFile string) error {
+	var ioReaderInput io.Reader = os.Stdin
+	var ioWriter io.Writer = os.Stdout
+
+	input := bufio.NewReader(ioReaderInput) // buffered reader for `,` requests
 
 	var (
 		fpos uint   = 0                  // file position
@@ -63,7 +61,7 @@ func translate(r io.Reader, i io.Reader, w io.Writer) error {
 		data []byte = make([]byte, size) // data card with `size` items
 	)
 
-	jumps, err := bf_jumps(prog) // pre-computed jumps
+	jumps, err := bfJumps(prog) // pre-computed jumps
 
 	if err != nil {
 		return err
@@ -104,7 +102,7 @@ func translate(r io.Reader, i io.Reader, w io.Writer) error {
 				dpos--
 			}
 		case '.': // output value of current position
-			fmt.Fprintf(w, "%c", data[dpos])
+			fmt.Fprintf(ioWriter, "%c", data[dpos])
 		case ',': // read value into current position
 			if data[dpos], err = input.ReadByte(); err != nil {
 				os.Exit(0)
@@ -122,7 +120,7 @@ func translate(r io.Reader, i io.Reader, w io.Writer) error {
 	}
 
 	d1 := []byte(sb.String())
-	err2 := os.WriteFile("tmp/translated.js", d1, 0644)
+	err2 := os.WriteFile(resultFile, d1, 0644)
 	check(err2)
 
 	return nil
@@ -161,25 +159,6 @@ func filterBrainFuck(input []byte) (ret []byte) {
 	return
 }
 
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "usage: %s [file.bf]\n", os.Args[0])
-		os.Exit(3)
-	}
-
-	r, err := os.Open(os.Args[1])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(2)
-	}
-
-	err = translate(r, os.Stdin, os.Stdout)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-}
-
 func check(e error) {
 	if e != nil {
 		panic(e)
@@ -213,7 +192,7 @@ func toJSBlock(char byte, input *bufio.Reader) string {
 		if err != nil {
 			os.Exit(0)
 		}
-		result = fmt.Sprintf("if (data[dpos] = %s) {;", readByte) +
+		result = fmt.Sprintf("if (data[dpos] = %d) {;", readByte) +
 			`	process.exit(0)
 		}` + "\n"
 	case '[': // if current position is false, skip to ]
