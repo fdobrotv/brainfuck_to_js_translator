@@ -1,7 +1,7 @@
 package translator_service
 
 import (
-	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -47,7 +47,7 @@ func bfJumps(prog []byte) (map[uint]uint, error) {
 	return jumps, nil
 }
 
-func Translate(prog []byte, input *bufio.Reader, resultFile string) error {
+func Translate(prog []byte, input *bytes.Reader, resultFile string) error {
 	var ioWriter io.Writer = os.Stdout
 
 	var (
@@ -78,65 +78,53 @@ func Translate(prog []byte, input *bufio.Reader, resultFile string) error {
 	jumpsJS := fmt.Sprintf("const jumps = new Map([%s]);\n", toJSJumps(jumps))
 	sb.WriteString(jumpsJS)
 
+	defer fmt.Println()
 	for fpos < plen {
 		var jsBlock string
 		switch prog[fpos] {
 		case '+': // increment at current position
-			jsBlock = "data[dpos] += 1;\n"
+			jsBlock = "data[dpos] += 1;"
 			data[dpos]++
 		case '-': // decrement at current position
-			jsBlock = "data[dpos] -= 1;\n"
+			jsBlock = "data[dpos] -= 1;"
 			data[dpos]--
 		case '>': // move to next position
-			jsBlock = `if (dpos === size-1) {
-							dpos = 0;
-						} else {
-							dpos++;
-						}` + "\n"
+			jsBlock = "if (dpos === size-1) { dpos = 0; } else { dpos++; }"
 			if dpos == size-1 {
 				dpos = 0
 			} else {
 				dpos++
 			}
 		case '<': // move to previous position
-			jsBlock = `if (dpos === 0) {
-							dpos = size - 1;
-						} else {
-							dpos--;
-						}` + "\n"
+			jsBlock = "if (dpos === 0) { dpos = size - 1; } else { dpos--; }"
 			if dpos == 0 {
 				dpos = size - 1
 			} else {
 				dpos--
 			}
 		case '.': // output value of current position
-			jsBlock = "process.stdout.write(String.fromCharCode(data[dpos]));\n"
+			jsBlock = "process.stdout.write(String.fromCharCode(data[dpos]));"
 			fmt.Fprintf(ioWriter, "%c", data[dpos])
 		case ',': // read value into current position
 			readByte, _ := input.ReadByte()
-			jsBlock = fmt.Sprintf("if (data[dpos] = %d) {;", readByte) +
-				`	process.exit(0)
-										}` + "\n"
+			jsBlock = fmt.Sprintf("data[dpos] = %d\n", readByte)
 			data[dpos] = readByte
 			if err != nil && err != io.EOF {
 				os.Exit(0)
 			}
 		case '[': // if current position is false, skip to ]
-			jsBlock = `if (data[dpos] === 0) {
-						fpos = jumps[fpos]
-					}` + "\n"
+			jsBlock = "if (data[dpos] === 0) { fpos = jumps[fpos] }"
 			if data[dpos] == 0 {
 				fpos = jumps[fpos]
 			}
 		case ']': // if at current position true, return to [
-			jsBlock = `if (data[dpos] !== 0) {
-						fpos = jumps[fpos]
-					}` + "\n"
+			jsBlock = "if (data[dpos] !== 0) { fpos = jumps[fpos] }"
 			if data[dpos] != 0 {
 				fpos = jumps[fpos]
 			}
 		}
 		sb.WriteString(jsBlock)
+		sb.WriteString("\n")
 		fpos++
 	}
 
@@ -148,10 +136,12 @@ func Translate(prog []byte, input *bufio.Reader, resultFile string) error {
 }
 
 func toJSJumps(jumps map[uint]uint) string {
+	fmt.Println("toJSJumps() result: [")
+	defer fmt.Println("]")
 	var preResult []string
 
 	for key, element := range jumps {
-		fmt.Println("Key:", key, "=>", "Element:", element)
+		fmt.Println("\tKey:", key, "=>", "Element:", element)
 		mapEntry := fmt.Sprintf("['%d', '%d']", key, element)
 		preResult = append(preResult, mapEntry)
 	}
@@ -160,7 +150,7 @@ func toJSJumps(jumps map[uint]uint) string {
 
 func toJSProgString(prog []byte) string {
 	onlyBrainFuckSymbols := filterBrainFuck(prog)
-	fmt.Println(string(onlyBrainFuckSymbols))
+	fmt.Println("BrainFuck prog: " + string(onlyBrainFuckSymbols))
 	return "const prog = \"" + string(onlyBrainFuckSymbols) + "\";\n"
 }
 

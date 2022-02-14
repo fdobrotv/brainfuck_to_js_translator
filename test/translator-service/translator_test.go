@@ -1,10 +1,9 @@
 package translator_service
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
 	"helper"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -63,11 +62,13 @@ func TestReverseInput(t *testing.T) {
 }
 
 func testTranslation(t *testing.T, testSet TestSet) {
-	var file io.Reader
+	var inputBytes []byte
 	if len(testSet.input) > 0 {
-		file = openFile(testSet.input)
+		file := openFile(testSet.input)
+		inputBytes = helper.ReadFileToByteArray(file)
+		defer file.Close()
 	} else {
-		file = nil
+		inputBytes = nil
 	}
 
 	_, filename, _, _ := runtime.Caller(0)
@@ -77,9 +78,10 @@ func testTranslation(t *testing.T, testSet TestSet) {
 
 	tempDir := t.TempDir()
 
-	program := helper.ReadProgram(osOpenInput)
+	program := helper.ReadFileToByteArray(osOpenInput)
 	outputFile := tempDir + "/translated.js"
-	var input *bufio.Reader = bufio.NewReader(file)
+
+	var input = bytes.NewReader(inputBytes)
 	var err = translator_service.Translate(program, input, outputFile)
 	if err != nil {
 		os.Exit(5)
