@@ -47,11 +47,8 @@ func bfJumps(prog []byte) (map[uint]uint, error) {
 	return jumps, nil
 }
 
-func Translate(prog []byte, resultFile string) error {
-	var ioReaderInput io.Reader = os.Stdin
+func Translate(prog []byte, input *bufio.Reader, resultFile string) error {
 	var ioWriter io.Writer = os.Stdout
-
-	input := bufio.NewReader(ioReaderInput) // buffered reader for `,` requests
 
 	var (
 		fpos uint   = 0                  // file position
@@ -82,40 +79,64 @@ func Translate(prog []byte, resultFile string) error {
 	sb.WriteString(jumpsJS)
 
 	for fpos < plen {
-		var jsBlock = toJSBlock(prog[fpos], input)
-		sb.WriteString(jsBlock)
+		var jsBlock string
 		switch prog[fpos] {
 		case '+': // increment at current position
+			jsBlock = "data[dpos] += 1;\n"
 			data[dpos]++
 		case '-': // decrement at current position
+			jsBlock = "data[dpos] -= 1;\n"
 			data[dpos]--
 		case '>': // move to next position
+			jsBlock = `if (dpos === size-1) {
+							dpos = 0;
+						} else {
+							dpos++;
+						}` + "\n"
 			if dpos == size-1 {
 				dpos = 0
 			} else {
 				dpos++
 			}
 		case '<': // move to previous position
+			jsBlock = `if (dpos === 0) {
+							dpos = size - 1;
+						} else {
+							dpos--;
+						}` + "\n"
 			if dpos == 0 {
 				dpos = size - 1
 			} else {
 				dpos--
 			}
 		case '.': // output value of current position
+			jsBlock = "process.stdout.write(String.fromCharCode(data[dpos]));\n"
 			fmt.Fprintf(ioWriter, "%c", data[dpos])
 		case ',': // read value into current position
-			if data[dpos], err = input.ReadByte(); err != nil {
+			readByte, _ := input.ReadByte()
+			jsBlock = fmt.Sprintf("if (data[dpos] = %d) {;", readByte) +
+				`	process.exit(0)
+										}` + "\n"
+			data[dpos] = readByte
+			if err != nil && err != io.EOF {
 				os.Exit(0)
 			}
 		case '[': // if current position is false, skip to ]
+			jsBlock = `if (data[dpos] === 0) {
+						fpos = jumps[fpos]
+					}` + "\n"
 			if data[dpos] == 0 {
 				fpos = jumps[fpos]
 			}
 		case ']': // if at current position true, return to [
+			jsBlock = `if (data[dpos] !== 0) {
+						fpos = jumps[fpos]
+					}` + "\n"
 			if data[dpos] != 0 {
 				fpos = jumps[fpos]
 			}
 		}
+		sb.WriteString(jsBlock)
 		fpos++
 	}
 
@@ -163,47 +184,4 @@ func check(e error) {
 	if e != nil {
 		panic(e)
 	}
-}
-
-func toJSBlock(char byte, input *bufio.Reader) string {
-	var result string
-
-	switch char {
-	case '+': // increment at current position
-		result = "data[dpos] += 1;\n"
-	case '-': // decrement at current position
-		result = "data[dpos] -= 1;\n"
-	case '>': // move to next position
-		result = `if (dpos === size-1) {
-			dpos = 0;
-		} else {
-			dpos++;
-		}` + "\n"
-	case '<': // move to previous position
-		result = `if (dpos === 0) {
-			dpos = size - 1;
-		} else {
-			dpos--;
-		}` + "\n"
-	case '.': // output value of current position
-		result = `process.stdout.write(String.fromCharCode(data[dpos]));` + "\n"
-	case ',': // read value into current position
-		readByte, err := input.ReadByte()
-		if err != nil {
-			os.Exit(0)
-		}
-		result = fmt.Sprintf("if (data[dpos] = %d) {;", readByte) +
-			`	process.exit(0)
-		}` + "\n"
-	case '[': // if current position is false, skip to ]
-		result = `if (data[dpos] === 0) {
-			fpos = jumps[fpos]
-		}` + "\n"
-	case ']': // if at current position true, return to [
-		result = `if (data[dpos] !== 0) {
-			fpos = jumps[fpos]
-		}` + "\n"
-	}
-
-	return result
 }

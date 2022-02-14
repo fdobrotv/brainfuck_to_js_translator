@@ -1,8 +1,10 @@
 package translator_service
 
 import (
+	"bufio"
 	"fmt"
 	"helper"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -14,10 +16,10 @@ import (
 )
 
 const (
-	TEST_DATA_DIR       = "../data/"
-	BRAINFUCK_EXTENSION = ".bf"
-	INPUT_EXTENSION     = ".in"
-	OUTPUT_EXTENSION    = ".out"
+	TestDataDir        = "../data/"
+	BrainfuckExtension = ".bf"
+	InputExtension     = ".in"
+	OutputExtension    = ".out"
 )
 
 type TestSet struct {
@@ -37,9 +39,9 @@ func TestMain(m *testing.M) {
 func TestHelloWorld(t *testing.T) {
 	t.Logf("%s is going to run", t.Name())
 	var testFileName = "HelloWorld"
-	brainFuckProgFile := TEST_DATA_DIR + testFileName + BRAINFUCK_EXTENSION
+	brainFuckProgFile := TestDataDir + testFileName + BrainfuckExtension
 	brainFuckProgInFile := ""
-	brainFuckProgOutFile := TEST_DATA_DIR + testFileName + OUTPUT_EXTENSION
+	brainFuckProgOutFile := TestDataDir + testFileName + OutputExtension
 
 	testSet := TestSet{brainFuckProgFile, brainFuckProgInFile, brainFuckProgOutFile}
 	testTranslation(t, testSet)
@@ -50,9 +52,9 @@ func TestHelloWorld(t *testing.T) {
 func TestReverseInput(t *testing.T) {
 	t.Logf("%s is going to run", t.Name())
 	var testFileName = "ReverseInput"
-	brainFuckProgFile := TEST_DATA_DIR + testFileName + BRAINFUCK_EXTENSION
-	brainFuckProgInFile := TEST_DATA_DIR + testFileName + INPUT_EXTENSION
-	brainFuckProgOutFile := TEST_DATA_DIR + testFileName + OUTPUT_EXTENSION
+	brainFuckProgFile := TestDataDir + testFileName + BrainfuckExtension
+	brainFuckProgInFile := TestDataDir + testFileName + InputExtension
+	brainFuckProgOutFile := TestDataDir + testFileName + OutputExtension
 
 	testSet := TestSet{brainFuckProgFile, brainFuckProgInFile, brainFuckProgOutFile}
 	testTranslation(t, testSet)
@@ -61,20 +63,24 @@ func TestReverseInput(t *testing.T) {
 }
 
 func testTranslation(t *testing.T, testSet TestSet) {
+	var file io.Reader
 	if len(testSet.input) > 0 {
-
+		file = openFile(testSet.input)
+	} else {
+		file = nil
 	}
 
 	_, filename, _, _ := runtime.Caller(0)
 	t.Logf("Current test filename: %s", filename)
 
-	osOpenInput, err := openFile(testSet.program)
+	osOpenInput := openFile(testSet.program)
 
 	tempDir := t.TempDir()
 
 	program := helper.ReadProgram(osOpenInput)
 	outputFile := tempDir + "/translated.js"
-	err = translator_service.Translate(program, outputFile)
+	var input *bufio.Reader = bufio.NewReader(file)
+	var err = translator_service.Translate(program, input, outputFile)
 	if err != nil {
 		os.Exit(5)
 	}
@@ -110,11 +116,11 @@ func getPWD(t *testing.T) string {
 	return getwd
 }
 
-func openFile(file string) (*os.File, error) {
+func openFile(file string) *os.File {
 	osOpenInput, err := os.Open(file)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(2)
 	}
-	return osOpenInput, err
+	return osOpenInput
 }

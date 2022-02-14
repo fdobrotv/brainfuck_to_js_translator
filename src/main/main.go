@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"helper"
+	"io"
 	"os"
 	"translator_service"
 )
@@ -22,7 +24,9 @@ func main() {
 	}
 
 	prog := helper.ReadProgram(osOpenInput)
-	err = translator_service.Translate(prog, outputFile)
+	var ioReaderInput io.Reader = os.Stdin
+	var input *bufio.Reader = bufio.NewReader(ioReaderInput) // buffered reader for `,` requests
+	err = translator_service.Translate(prog, input, outputFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
