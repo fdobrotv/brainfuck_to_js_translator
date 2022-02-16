@@ -1,6 +1,10 @@
 # brainfuck_to_js_translator
 Translator of Brainfuck to Javascript
 
+# Limitations and plans
+1 - Use Abstract syntax tree to reduce JS command count
+2 - Make input argument optional
+
 # How to run
     set GOPATH=.
     go run src/main/main.go test/data/ReverseInput.bf test/data/ReverseInput.in
