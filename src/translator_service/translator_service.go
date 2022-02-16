@@ -78,25 +78,51 @@ func Translate(prog []byte, input *bytes.Reader, resultFile string) error {
 	jumpsJS := fmt.Sprintf("const jumps = new Map([%s]);\n", toJSJumps(jumps))
 	sb.WriteString(jumpsJS)
 
+	var lastAction byte = 0
+	var repeatCount int = 1
+
 	defer fmt.Println()
 	for fpos < plen {
 		var jsBlock string
-		switch prog[fpos] {
+
+		var command byte = prog[fpos]
+
+		if lastAction != command {
+			if lastAction != 0 {
+				var block string
+				switch lastAction {
+				case '+':
+					block = fmt.Sprintf("data[dpos] += %d;", repeatCount)
+				case '-':
+					block = fmt.Sprintf("data[dpos] -= %d;", repeatCount)
+				case '>':
+					block = fmt.Sprintf("if (dpos === size-1) { dpos = 0; } else { dpos += %d; }", repeatCount)
+				case '<':
+					block = fmt.Sprintf("if (dpos === 0) { dpos = size - 1; } else { dpos -= %d; }", repeatCount)
+				}
+				if len(block) > 0 {
+					sb.WriteString(block)
+					sb.WriteString("\n")
+				}
+			}
+			lastAction = command
+			repeatCount = 1
+		} else {
+			repeatCount++
+		}
+
+		switch command {
 		case '+': // increment at current position
-			jsBlock = "data[dpos] += 1;"
 			data[dpos]++
 		case '-': // decrement at current position
-			jsBlock = "data[dpos] -= 1;"
 			data[dpos]--
 		case '>': // move to next position
-			jsBlock = "if (dpos === size-1) { dpos = 0; } else { dpos++; }"
 			if dpos == size-1 {
 				dpos = 0
 			} else {
 				dpos++
 			}
 		case '<': // move to previous position
-			jsBlock = "if (dpos === 0) { dpos = size - 1; } else { dpos--; }"
 			if dpos == 0 {
 				dpos = size - 1
 			} else {
@@ -123,8 +149,10 @@ func Translate(prog []byte, input *bytes.Reader, resultFile string) error {
 				fpos = jumps[fpos]
 			}
 		}
-		sb.WriteString(jsBlock)
-		sb.WriteString("\n")
+		if len(jsBlock) > 0 {
+			sb.WriteString(jsBlock)
+			sb.WriteString("\n")
+		}
 		fpos++
 	}
 
